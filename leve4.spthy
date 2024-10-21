@@ -53,8 +53,8 @@ rule connectLLOracle:
   [
     HostState('LLConnected',<$HI,'Initiator',$CI,$HR,~LTK,~HCIHandleI>),
     HostState('LLConnected',<$HR,'Responder',$CR,$HI,~LTK,~HCIHandleR>),
-    !ControllerStateP('LLConnected',<$CI,$HI,~HCIHandleI,~AccessAdd>),
-    !ControllerStateP('LLConnected',<$CR,$HR,~HCIHandleR,~AccessAdd>)
+    !ControllerStateP('LLConnected',<$CI,'Central',$HI,~HCIHandleI,~AccessAdd>),
+    !ControllerStateP('LLConnected',<$CR,'Peripheral',$HR,~HCIHandleR,~AccessAdd>)
   ]
 
 rule oracle:
