@@ -93,7 +93,7 @@ rule hciChannelrev [color=#D3D3D3]:
 /*
 PRE: HostState('LLConnected',<$HI,'Initiator',$CI,$HR,~LTK,~HCIHandleI>),
 CON: HostState('SentLTK',<$HI,'Initiator',$CI,$HR,~LTK,~HCIHandleI>),
-OUT-HCI: HCIOut($HI,$CI,<~HCIHandleI,~LTK>)
+OUT-HCI: HCIOut($HI,$CI,<~HCIHandleI,'HCI_LE_Enable_Encryption',~LTK>)
 */
 rule ihSendLTK [color=#DEBF80]:
   [
@@ -101,7 +101,7 @@ rule ihSendLTK [color=#DEBF80]:
   ]
   --[]->
   [
-    HCIOut($HI,$CI,<~HCIHandleI,~LTK>),
+    HCIOut($HI,$CI,<~HCIHandleI,'HCI_LE_Enable_Encryption',~LTK>),
     HostState('SentLTK',<$HI,'Initiator',$CI,$HR,~LTK,~HCIHandleI>)
   ]
 
@@ -125,17 +125,17 @@ rule ihRevEncChange [color=#DEBF80]:
 
 //! Initiator Controller
 /*
-PRE: !ControllerStateP('LLConnected',<$CI,$HI,~HCIHandleI,~AccessAdd>),
+PRE: !ControllerStateP('LLConnected',<$CI,'Central',$HI,~HCIHandleI,~AccessAdd>),
 ACT: Fr(~SKDI),Fr(~IVI)
-IN-HCI: HCIIn($HI,$CI,<~HCIHandleI,LTK>),
-CON: ControllerState('LLSentSKD',<$CI,$HI,~HCIHandleI,~AccessAdd,~SKDI,~IVI,LTK>),
+IN-HCI: HCIIn($HI,$CI,<~HCIHandleI,'HCI_LE_Enable_Encryption',LTK>),
+CON: ControllerState('LLSentSKD',<$CI,'Central',$HI,~HCIHandleI,~AccessAdd,~SKDI,~IVI,LTK>),
 OUT-BT: Out(<~AccessAdd,~SKDI,~IVI>),
 OUT-HCI: HCIOut($CI,$HI,<~HCIHandleI,<'HCI_Command_State','HCI_LE_Enable_Encryption'>>)
 */
 rule icRevLTK [color=#DCCD5B]:
   [
-    !ControllerStateP('LLConnected',<$CI,$HI,~HCIHandleI,~AccessAdd>),
-    HCIIn($HI,$CI,<~HCIHandleI,LTK>),
+    !ControllerStateP('LLConnected',<$CI,'Central',$HI,~HCIHandleI,~AccessAdd>),
+    HCIIn($HI,$CI,<~HCIHandleI,'HCI_LE_Enable_Encryption',LTK>),
     Fr(~SKDI),
     Fr(~IVI)
   ]
@@ -143,16 +143,16 @@ rule icRevLTK [color=#DCCD5B]:
     OnlyOnceV(<'RevLTK',~HCIHandleI>)
   ]->
   [
-    ControllerState('LLSentSKD',<$CI,$HI,~HCIHandleI,~AccessAdd,~SKDI,~IVI,LTK>),
+    ControllerState('LLSentSKD',<$CI,'Central',$HI,~HCIHandleI,~AccessAdd,~SKDI,~IVI,LTK>),
     Out(<~AccessAdd,~SKDI,~IVI>),
     HCIOut($CI,$HI,<~HCIHandleI,<'HCI_Command_State','HCI_LE_Enable_Encryption'>>)
   ]
 
 /*
-PRE: ControllerState('LLSentSKD',<$CI,$HI,~HCIHandleI,~AccessAdd,~SKDI,~IVI,LTK>),
+PRE: ControllerState('LLSentSKD',<$CI,'Central',$HI,~HCIHandleI,~AccessAdd,~SKDI,~IVI,LTK>),
 IN-BT: In(<~AccessAdd,~SKDR,~IVR>),
         In(<~AccessAdd,'LL_START_ENC_REQ'>),
-CON: ControllerState('LLSenEnctRSP',<$CI,$HI,~HCIHandleI,~AccessAdd,SK,IV,sendCounterNew,revCounter>),
+CON: ControllerState('LLSenEnctRSP',<$CI,'Central',$HI,~HCIHandleI,~AccessAdd,SK,IV,sendCounterNew,revCounter>),
 OUT-BT: Out(<~AccessAdd,'LL_START_ENC_RSP'>)
  */
 rule icRevSKD [color=#DCCD5B]:
@@ -167,20 +167,20 @@ rule icRevSKD [color=#DCCD5B]:
     EncRsp = senc(<<IV,sendCounter,directionFlagSend>,'LL_START_ENC_RSP'>,SK)
   in
   [
-    ControllerState('LLSentSKD',<$CI,$HI,~HCIHandleI,~AccessAdd,~SKDI,~IVI,LTK>),
+    ControllerState('LLSentSKD',<$CI,'Central',$HI,~HCIHandleI,~AccessAdd,~SKDI,~IVI,LTK>),
     In(<~AccessAdd,~SKDR,~IVR>),
     In(<~AccessAdd,'LL_START_ENC_REQ'>)
   ]
   --[]->
   [
-    ControllerState('LLSentEncRSP',<$CI,$HI,~HCIHandleI,~AccessAdd,SK,IV,sendCounterNew,revCounter>),
+    ControllerState('LLSentEncRSP',<$CI,'Central',$HI,~HCIHandleI,~AccessAdd,SK,IV,sendCounterNew,revCounter>),
     Out(<~AccessAdd,EncRsp>)
   ]
 
 /*
-PRE: ControllerState('LLSentEncRSP',<$CI,$HI,~HCIHandleI,~AccessAdd,SK,IV,sendCounterNew,revCounter>),
+PRE: ControllerState('LLSentEncRSP',<$CI,'Central',$HI,~HCIHandleI,~AccessAdd,SK,IV,sendCounterNew,revCounter>),
 IN-BT: In(<~AccessAdd,EncPeerRsp>)，
-CON: ControllerState('LLRevEncRSP',<$CI,$HI,~HCIHandleI,~AccessAdd,SK,IV,sendCounterNew,revCounterNew>),
+CON: ControllerState('LLRevEncRSP',<$CI,'Central',$HI,~HCIHandleI,~AccessAdd,SK,IV,sendCounterNew,revCounterNew>),
 OUT-HCI：HCIOut($CI,$HI,<~HCIHandleI,<'HCI_Encrytion_Change'>>)
 */
 rule icRevEncRSP [color=#DCCD5B]:
@@ -191,7 +191,7 @@ rule icRevEncRSP [color=#DCCD5B]:
     EncPeerRsp = senc(<<IV,%revCounter,directionFlagRev>,'LL_START_ENC_RSP'>,SK)
   in
   [
-    ControllerState('LLSentEncRSP',<$CI,$HI,~HCIHandleI,~AccessAdd,SK,IV,%sendCounter,%revCounter>),
+    ControllerState('LLSentEncRSP',<$CI,'Central',$HI,~HCIHandleI,~AccessAdd,SK,IV,%sendCounter,%revCounter>),
     In(<~AccessAdd,EncPeerRsp>)
   ]
   --[
@@ -199,38 +199,38 @@ rule icRevEncRSP [color=#DCCD5B]:
     Honest($HI),
   ]->
   [
-    ControllerState('LLRevEncRSP',<$CI,$HI,~HCIHandleI,~AccessAdd,SK,IV,%sendCounter,revCounterNew>),
+    ControllerState('LLRevEncRSP',<$CI,'Central',$HI,~HCIHandleI,~AccessAdd,SK,IV,%sendCounter,revCounterNew>),
     HCIOut($CI,$HI,<~HCIHandleI,<'HCI_Encrytion_Change'>>)
   ]
 
 
 //! Responder Controller
 /*
-PRE: !ControllerStateP('LLConnected',<$CR,$HR,~HCIHandleR,~AccessAdd>),
+PRE: !ControllerStateP('LLConnected',<$CR,'Peripheral',$HR,~HCIHandleR,~AccessAdd>),
 IN-BT: In(<~AccessAdd,~SKDI,~IVI>),
 ACT: Fr(~SKDR),Fr(~IVR)
-CON: ControllerState('LLRevSKDI',<$CR,$HR,~HCIHandleR,~AccessAdd,~SKDI,~SKDR,~IVI,~IVR>),
+CON: ControllerState('LLRevSKDI',<$CR,'Peripheral',$HR,~HCIHandleR,~AccessAdd,~SKDI,~SKDR,~IVI,~IVR>),
 OUT-BT: Out(<~AccessAdd,~SKDR,~IVR>),
 OUT-HCI: HCIOut($CR,$HR,<~HCIHandleR,<'HCI_LE_Long_Term_Key_Request'>>)
 */
 rule rcRevSKDI [color=#73AD96]:
   [
-    !ControllerStateP('LLConnected',<$CR,$HR,~HCIHandleR,~AccessAdd>),
+    !ControllerStateP('LLConnected',<$CR,'Peripheral',$HR,~HCIHandleR,~AccessAdd>),
     In(<~AccessAdd,~SKDI,~IVI>),
     Fr(~SKDR),
     Fr(~IVR)
   ]
   --[]->
   [
-    ControllerState('LLRevSKDI',<$CR,$HR,~HCIHandleR,~AccessAdd,~SKDI,~SKDR,~IVI,~IVR>),
+    ControllerState('LLRevSKDI',<$CR,'Peripheral',$HR,~HCIHandleR,~AccessAdd,~SKDI,~SKDR,~IVI,~IVR>),
     Out(<~AccessAdd,~SKDR,~IVR>),
     HCIOut($CR,$HR,<~HCIHandleR,<'HCI_LE_Long_Term_Key_Request'>>)
   ]
 
 /*
-PRE: ControllerState('LLRevSKDI',<$CR,$HR,~HCIHandleR,~AccessAdd,~SKDI,~SKDR,~IVI,~IVR>),
-IN-HCI: HCIIn($HR,$CR,<~HCIHandleR,LTK>)
-CON: ControllerState('LLRevLTK',<$CR,$HR,~HCIHandleR,~AccessAdd,SK,IV>),
+PRE: ControllerState('LLRevSKDI',<$CR,'Peripheral',$HR,~HCIHandleR,~AccessAdd,~SKDI,~SKDR,~IVI,~IVR>),
+IN-HCI: HCIIn($HR,$CR,<~HCIHandleR,'HCI_LE_Long_Term_Key_Request_Reply',LTK>)
+CON: ControllerState('LLRevLTK',<$CR,'Peripheral',$HR,~HCIHandleR,~AccessAdd,SK,IV>),
 OUT-BT: Out(<~AccessAdd,'LL_START_ENC_REQ'>),
 OUT-HCI: HCIOut($CR,$HR,<~HCIHandleR,<'HCI_Command_Complete'>>)
 */
@@ -240,23 +240,23 @@ rule rcRevLTK [color=#73AD96]:
     IV = <~IVI,~IVR>
   in
   [
-    ControllerState('LLRevSKDI',<$CR,$HR,~HCIHandleR,~AccessAdd,~SKDI,~SKDR,~IVI,~IVR>),
-    HCIIn($HR,$CR,<~HCIHandleR,LTK>)
+    ControllerState('LLRevSKDI',<$CR,'Peripheral',$HR,~HCIHandleR,~AccessAdd,~SKDI,~SKDR,~IVI,~IVR>),
+    HCIIn($HR,$CR,<~HCIHandleR,'HCI_LE_Long_Term_Key_Request_Reply',LTK>)
   ]
   --[
     Secret(SK),
     Honest($HR)
   ]->
   [
-    ControllerState('LLRevLTK',<$CR,$HR,~HCIHandleR,~AccessAdd,SK,IV>),
+    ControllerState('LLRevLTK',<$CR,'Peripheral',$HR,~HCIHandleR,~AccessAdd,SK,IV>),
     Out(<~AccessAdd,'LL_START_ENC_REQ'>),
     HCIOut($CR,$HR,<~HCIHandleR,<'HCI_Command_Complete'>>)
   ]
 
 /*
-PRE: ControllerState('LLRevLTK',<$CR,$HR,~HCIHandleR,~AccessAdd,SK,IV>),
+PRE: ControllerState('LLRevLTK',<$CR,'Peripheral',$HR,~HCIHandleR,~AccessAdd,SK,IV>),
 IN-BT: In(<~AccessAdd,'LL_START_ENC_RSP'>),
-CON: ControllerState('LLRevEncRSP',<$CR,$HR,~HCIHandleR,~AccessAdd,SK,,sendCounterNew,revCounterNew>),
+CON: ControllerState('LLRevEncRSP',<$CR,'Peripheral',$HR,~HCIHandleR,~AccessAdd,SK,,sendCounterNew,revCounterNew>),
 OUT-BT: Out(<~AccessAdd,EncRsp>),
 OUT-HCI: HCIOut($CR,$HR,<~HCIHandleR,<'HCI_Encrytion_Change'>>)
 */
@@ -272,12 +272,12 @@ rule rcRevEncRSP [color=#73AD96]:
     EncRsp = senc(<<IV,sendCounter,directionFlagSend>,'LL_START_ENC_RSP'>,SK)
   in
   [
-    ControllerState('LLRevLTK',<$CR,$HR,~HCIHandleR,~AccessAdd,SK,IV>),
+    ControllerState('LLRevLTK',<$CR,'Peripheral',$HR,~HCIHandleR,~AccessAdd,SK,IV>),
     In(<~AccessAdd,EncPeerRsp>)
   ]
   --[Finished()]->
   [
-    ControllerState('LLRevEncRSP',<$CR,$HR,~HCIHandleR,~AccessAdd,SK,sendCounterNew,revCounterNew>),
+    ControllerState('LLRevEncRSP',<$CR,'Peripheral',$HR,~HCIHandleR,~AccessAdd,SK,sendCounterNew,revCounterNew>),
     Out(<~AccessAdd,EncRsp>),
     HCIOut($CR,$HR,<~HCIHandleR,<'HCI_Encrytion_Change'>>)
   ]
@@ -288,7 +288,7 @@ rule rcRevEncRSP [color=#73AD96]:
 PRE: HostState('LLConnected',<$HR,'Responder',$CR,$HI,~LTK,~HCIHandleR>),
 IN-HCI: HCIIn($CR,$HR,<~HCIHandleR,<'HCI_LE_Long_Term_Key_Request'>>)
 CON: HostState('LLSentLTK',<$HR,'Responder',$CR,$HI,~LTK,~HCIHandleR>),
-OUT-HCI: HCIOut($HR,$CR,<~HCIHandleR,~LTK>)
+OUT-HCI: HCIOut($HR,$CR,<~HCIHandleR,'HCI_LE_Long_Term_Key_Request_Reply',~LTK>)
 */
 rule rhRevLTKRequest:
   [
@@ -298,7 +298,7 @@ rule rhRevLTKRequest:
   --[]->
   [
     HostState('LLSentLTK',<$HR,'Responder',$CR,$HI,~LTK,~HCIHandleR>),
-    HCIOut($HR,$CR,<~HCIHandleR,~LTK>)
+    HCIOut($HR,$CR,<~HCIHandleR,'HCI_LE_Long_Term_Key_Request_Reply',~LTK>)
   ]
 
 /* 
