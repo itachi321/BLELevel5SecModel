@@ -145,7 +145,7 @@ rule ihSendLTK [color=#DEBF80]:
   in
   [
     HostState('SentDHEpk',<$HI,'Initiator',$CI,$HR,~LTK,~HCIHandleI,~DHEskI>),
-    HCIIn($CI,$HI,<~HCIHandleI,DHEpkR>)
+    HCIIn($CI,$HI,<~HCIHandleI,<'ACL',DHEpkR>>)
   ]
   --[]->
   [
