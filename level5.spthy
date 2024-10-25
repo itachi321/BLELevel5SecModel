@@ -127,7 +127,9 @@ rule ihSendDHEpk [color=#DEBF80]:
     HostState('LLConnected',<$HI,'Initiator',$CI,$HR,~LTK,~HCIHandleI>),
     Fr(~DHEskI)
   ]
-  --[]->
+  --[
+    SecretDHsk(~DHEpkI)
+  ]->
   [
     HostState('SentDHEpk',<$HI,'Initiator',$CI,$HR,~LTK,~HCIHandleI,~DHEskI>),
     HCIOut($HI,$CI,<~HCIHandleI,<'ACL',DHEpkI>>)
@@ -147,7 +149,9 @@ rule ihSendLTK [color=#DEBF80]:
     HostState('SentDHEpk',<$HI,'Initiator',$CI,$HR,~LTK,~HCIHandleI,~DHEskI>),
     HCIIn($CI,$HI,<~HCIHandleI,<'ACL',DHEpkR>>)
   ]
-  --[]->
+  --[
+    Neq(DHEpkR,DH_neutral)
+  ]->
   [
     HCIOut($HI,$CI,<~HCIHandleI,'HCI_LE_Enable_Encryption',LMKE>),
     HostState('SentLTK',<$HI,'Initiator',$CI,$HR,LMKE,~HCIHandleI>)
@@ -291,10 +295,7 @@ rule rcRevLTK [color=#73AD96]:
     ControllerState('LLRevSKDI',<$CR,'Peripheral',$HR,~HCIHandleR,~AccessAdd,~SKDI,~SKDR,~IVI,~IVR>),
     HCIIn($HR,$CR,<~HCIHandleR,'HCI_LE_Long_Term_Key_Request_Reply',LTK>)
   ]
-  --[
-    Secret(SK),
-    Honest($HR)
-  ]->
+  --[]->
   [
     ControllerState('LLRevLTK',<$CR,'Peripheral',$HR,~HCIHandleR,~AccessAdd,SK,IV>),
     Out(<~AccessAdd,'LL_START_ENC_REQ'>),
@@ -323,7 +324,10 @@ rule rcRevEncRSP [color=#73AD96]:
     ControllerState('LLRevLTK',<$CR,'Peripheral',$HR,~HCIHandleR,~AccessAdd,SK,IV>),
     In(<~AccessAdd,EncPeerRsp>)
   ]
-  --[Finished()]->
+  --[
+    Secret(SK),
+    Honest($HR)
+  ]->
   [
     ControllerState('LLRevEncRSP',<$CR,'Peripheral',$HR,~HCIHandleR,~AccessAdd,SK,sendCounterNew,revCounterNew>),
     Out(<~AccessAdd,EncRsp>),
@@ -348,7 +352,10 @@ rule rhSendDHEpk [color=#5F9069]:
     HCIIn($CR,$HR,<~HCIHandleR,<'ACL',DHEpkI>>),
     Fr(~DHEskR)
   ]
-  --[]->
+  --[
+    Neq(DHEpkI,DH_neutral),
+    SecretDHsk(~DHEpkI)
+  ]->
   [
     HostState('LLSentDHEpk',<$HR,'Responder',$CR,$HI,~LTK,~HCIHandleR,~DHEskR,DHEpkI>),
     HCIOut($HR,$CR,<~HCIHandleR,<'ACL',DHEpkR>>)
@@ -407,11 +414,10 @@ restriction OnlyOnceV:
   All x #i #j. OnlyOnceV(x)@i & OnlyOnceV(x)@j ==> #i = #j
   "
 
-lemma Test:
-  exists-trace
-  "
-  Ex #i. Finished()@i
-  "
+lemma SecrecyOfDHPrivateKey [reuse]:
+    "
+    All sk #i. SecretDHsk(sk)@i ==> not(Ex #j. KU(sk)@j)
+    "
 
 lemma secrecy_PFS [use_induction]:
   "All x #i.
