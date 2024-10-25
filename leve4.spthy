@@ -9,6 +9,21 @@ builtins: symmetric-encryption, natural-numbers
 functions: KDF/2 
 // equations: 
 
+tactic: secrecy_PFS
+presort: S
+prio:
+  regex ".*State\(\s.*"
+prio:
+  regex ".*HCIIn\(.*"
+prio:
+  regex ".*KU\(\ssenc\(.*"
+prio:
+  regex ".*KU\(\sKDF\(.*"
+prio:
+  regex ".*KU\(\s~LTK.*"
+prio:
+  regex ".*splitEqs.*"
+
 // Oracles
 rule bindOracle:
   [
@@ -336,7 +351,7 @@ restriction OnlyOnceV:
 
 
 
-lemma secrecy_PFS [use_induction]:
+lemma secrecy_PFS [heuristic={secrecy_PFS}, use_induction]:
   "All x #i.
     Secret(x)@i ==>
     not (Ex #j. K(x)@j) 
