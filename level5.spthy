@@ -128,7 +128,7 @@ rule ihSendDHEpk [color=#DEBF80]:
     Fr(~DHEskI)
   ]
   --[
-    SecretDHsk(~DHEpkI)
+    SecretDHsk(~DHEskI)
   ]->
   [
     HostState('SentDHEpk',<$HI,'Initiator',$CI,$HR,~LTK,~HCIHandleI,~DHEskI>),
@@ -354,7 +354,7 @@ rule rhSendDHEpk [color=#5F9069]:
   ]
   --[
     Neq(DHEpkI,DH_neutral),
-    SecretDHsk(~DHEpkI)
+    SecretDHsk(~DHEskR)
   ]->
   [
     HostState('LLSentDHEpk',<$HR,'Responder',$CR,$HI,~LTK,~HCIHandleR,~DHEskR,DHEpkI>),
