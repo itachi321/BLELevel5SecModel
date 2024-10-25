@@ -9,6 +9,25 @@ builtins: symmetric-encryption, diffie-hellman, natural-numbers
 functions: KDF/2 
 // equations: 
 
+tactic: secrecy_PFS
+presort: S
+prio:
+  regex ".*~DHEsk.*"
+prio:
+  regex ".*State\(\s.*"
+prio:
+  regex ".*HCIIn\(.*"
+prio:
+  regex ".*KU\(\ssenc\(.*"
+prio:
+  regex ".*KU\(\sKDF\(.*"
+prio:
+  regex ".*KU\(\s~LTK.*"
+prio:
+  regex ".*splitEqs.*"
+
+
+
 // Oracles
 rule bindOracle:
   [
@@ -419,7 +438,7 @@ lemma SecrecyOfDHPrivateKey [reuse]:
     All sk #i. SecretDHsk(sk)@i ==> not(Ex #j. KU(sk)@j)
     "
 
-lemma secrecy_PFS [use_induction]:
+lemma secrecy_PFS [heuristic={secrecy_PFS}, use_induction]:
   "All x #i.
     Secret(x)@i ==>
     not (Ex #j. K(x)@j) 
