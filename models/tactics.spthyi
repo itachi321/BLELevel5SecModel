@@ -1,0 +1,40 @@
+tactic: typeTactic
+presort: S
+deprio:
+  regex ".*KU\(\s~.*"
+
+
+tactic: secrecy_PFS
+presort: S
+prio:
+  regex ".*KU\(\s~DHEsk.*"
+prio:
+  regex ".*KU\(\s~LTK.*"
+prio:
+  regex ".*KU\(\s~AddRandom.*"
+prio:
+  regex ".*Secret.*"
+prio:
+  regex ".*Session.*"
+prio:
+  regex ".*Honest.*"
+prio:
+  regex ".*State\(\s.*"
+prio:
+  regex ".*HCIIn\(.*"
+prio:
+  regex ".*KU\(\sDHEpk.*"
+prio:
+  regex ".*splitEqs.*"
+prio:
+  regex ".*KU\(\s'g'\^.*"
+prio:
+  regex ".*KU\(\sz\^.*"
+prio:
+  regex ".*KU\(\sx\^.*"
+prio:
+  regex ".*KU\(\ssenc\(.*"
+prio:
+  regex ".*KU\(\sKDF\(.*"
+deprio:
+  regex ".*KU\(\s~(?!DHEsk|LTK|AddRandom).*"
