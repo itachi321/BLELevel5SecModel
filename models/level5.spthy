@@ -1,47 +1,37 @@
 theory Note_for_Level5Sec_changed
 begin
 
-heuristic: S
-
 // builtins: diffie-hellman, symmetric-encryption
 // functions: 
 builtins: symmetric-encryption, diffie-hellman, natural-numbers
-functions: KDF/2 
+functions: KDF/2, rand2Addr/1
 // equations: 
 
-tactic: secrecy_PFS
-presort: S
-prio:
-  regex ".*~DHEsk.*"
-prio:
-  regex ".*State\(\s.*"
-prio:
-  regex ".*HCIIn\(.*"
-prio:
-  regex ".*KU\(\ssenc\(.*"
-prio:
-  regex ".*KU\(\sKDF\(.*"
-prio:
-  regex ".*KU\(\s~LTK.*"
-prio:
-  regex ".*splitEqs.*"
-
+#include "./tactics.spthyi"
 
 
 // Oracles
-rule bindOracle:
+rule bindOracle [color=#FF5733]:
   [
     In(<'Bind',$Host,$Ctrller>)
   ]
   --[
     Neq($Host,$Ctrller),
-    OnlyOnceV(<$Host,$Ctrller>)
+    OnlyOnceV(<$Host,$Ctrller>),
+    FixRole($Host,'Host'),
+    FixRole($Ctrller,'Controller'),
+    BindHC($Host,$Ctrller)
   ]->
   [
     !HCBind($Ctrller,$Host)
   ]
 
-rule pairingOracle:
+restriction fixRole:
+  "
+  All hoc role1 role2 #i #j. FixRole(hoc,role1)@i & FixRole(hoc,role2)@j ==> role1=role2
+  "
+
+rule pairingOracle [color=#FF5733]:
   [
     In(<'Pairing',$HI,$HR>),
     !HCBind($CI,$HI),
@@ -49,34 +39,15 @@ rule pairingOracle:
     Fr(~LTK)
   ]
   --[
-    Partner($HI,$HR),
-    Partner($HR,$HI)
+    Paired($HI,$HR),
+    Paired($HR,$HI)
   ]->
   [ 
     !HostStateP('Paired',<$HI,'Initiator',$CI,$HR,~LTK>),
     !HostStateP('Paired',<$HR,'Responder',$CR,$HI,~LTK>)
   ]
 
-rule connectLLOracle:
-  [
-    In(<'Connect',$HI,$HR>),
-    !HostStateP('Paired',<$HI,'Initiator',$CI,$HR,~LTK>),
-    !HostStateP('Paired',<$HR,'Responder',$CR,$HI,~LTK>),
-    !HCBind($CI,$HI),
-    !HCBind($CR,$HR),
-    Fr(~HCIHandleI),
-    Fr(~HCIHandleR),
-    Fr(~AccessAdd)
-  ]
-  --[]->
-  [
-    HostState('LLConnected',<$HI,'Initiator',$CI,$HR,~LTK,~HCIHandleI>),
-    HostState('LLConnected',<$HR,'Responder',$CR,$HI,~LTK,~HCIHandleR>),
-    !ControllerStateP('LLConnected',<$CI,'Central',$HI,~HCIHandleI,~AccessAdd>),
-    !ControllerStateP('LLConnected',<$CR,'Peripheral',$HR,~HCIHandleR,~AccessAdd>)
-  ]
-
-rule oracle:
+rule oracle [color=#FF5733]:
   [
     !HostStateP('Paired',<$Host,Role,$C,$PeerHost,~LTK>),
     In(<'ReqLTK',$Host>)
@@ -88,48 +59,79 @@ rule oracle:
     Out(~LTK)
   ]
 
-// ! HCI Channel
-rule hciChannelsend [color=#D3D3D3]:
+
+rule connectLLOracle:
+  let
+    AccessAdd=rand2Addr(~AddRandom)
+  in
   [
-    HCIOut(src,dst,msg)
+    In(<'Connect',$HI,$HR>),
+    !HostStateP('Paired',<$HI,'Initiator',$CI,$HR,~LTK>),
+    !HostStateP('Paired',<$HR,'Responder',$CR,$HI,~LTK>),
+    !HCBind($CI,$HI),
+    !HCBind($CR,$HR),
+    Fr(~HCIHandleI),
+    Fr(~HCIHandleR),
+    Fr(~AddRandom)
   ]
   --[]->
   [
-    !HCIState(src,dst,msg)
+    HostState('LLConnected',<$HI,'Initiator',$CI,$HR,~LTK,~HCIHandleI>),
+    !ControllerStateP('LLConnected',<$CI,'Central',$HI,~HCIHandleI,AccessAdd>),
+    HostState('LLConnected',<$HR,'Responder',$CR,$HI,~LTK,~HCIHandleR>),
+    !ControllerStateP('LLConnected',<$CR,'Peripheral',$HR,~HCIHandleR,AccessAdd>)
+  ]
+
+// ! HCI Channel
+rule hciChannelsend [color=#D3D3D3]:
+  [
+    HCIOut(src,dst,<handle,msg>)
+  ]
+  --[]->
+  [
+    !HCIState(src,dst,<handle,msg>)
   ]
 
 rule hciChannelrev [color=#D3D3D3]:
   [
-    !HCIState(src,dst,msg)
+    !HCIState(src,dst,<handle,msg>)
   ]
   --[]->
   [
-    HCIIn(src,dst,msg)
+    HCIIn(src,dst,<handle,msg>)
   ]
 
+// rule hciOracle:
+//   [
+//     !HCIState(src,dst,<handle,msg>)
+//   ]
+//   --[
+//     BreakHCI(handle)
+//   ]->
+//   [
+//     Out(<src,dst,<handle,msg>>)
+//   ]
 
-// two rules are used for transmitting public key before encoding
+// relay msg between HCI and BLE
 rule hciInTranOut:
   [
-    !ControllerStateP('LLConnected',<$C,Role,$Host,~HCIHandle,~AccessAdd>),
-    HCIIn($Host,$C,<~HCIHandle,<'ACL',DHEpk>>)
+    !ControllerStateP('LLConnected',<$C,Role,$Host,~HCIHandle,AccessAdd>),
+    HCIIn($Host,$C,<~HCIHandle,<'ACL',msg>>)
   ]
   --[]->
   [
-    Out(<~AccessAdd,DHEpk>)
+    Out(<AccessAdd,msg>)
   ]
 
 rule inTranHCIOut:
   [
-    !ControllerStateP('LLConnected',<$C,Role,$Host,~HCIHandle,~AccessAdd>),
-    In(<~AccessAdd,DHEpk>)
+    !ControllerStateP('LLConnected',<$C,Role,$Host,~HCIHandle,AccessAdd>),
+    In(<AccessAdd,msg>)
   ]
   --[]->
   [
-    HCIOut($C,$Host,<~HCIHandle,<'ACL',DHEpk>>)
+    HCIOut($C,$Host,<~HCIHandle,<'ACL',msg>>)
   ]
-
-
 
 //! Initiator Host
 /*
@@ -146,9 +148,7 @@ rule ihSendDHEpk [color=#DEBF80]:
     HostState('LLConnected',<$HI,'Initiator',$CI,$HR,~LTK,~HCIHandleI>),
     Fr(~DHEskI)
   ]
-  --[
-    SecretDHsk(~DHEskI)
-  ]->
+  --[]->
   [
     HostState('SentDHEpk',<$HI,'Initiator',$CI,$HR,~LTK,~HCIHandleI,~DHEskI>),
     HCIOut($HI,$CI,<~HCIHandleI,<'ACL',DHEpkI>>)
@@ -169,11 +169,14 @@ rule ihSendLTK [color=#DEBF80]:
     HCIIn($CI,$HI,<~HCIHandleI,<'ACL',DHEpkR>>)
   ]
   --[
-    Neq(DHEpkR,DH_neutral)
+    Neq(DHEpkR,DH_neutral),
+    Src_IHOutLTK(LMKE),
+    SecretDHsk(~DHEskI,LMKE)
   ]->
   [
     HCIOut($HI,$CI,<~HCIHandleI,'HCI_LE_Enable_Encryption',LMKE>),
-    HostState('SentLTK',<$HI,'Initiator',$CI,$HR,LMKE,~HCIHandleI>)
+    HostState('SentLTK',<$HI,'Initiator',$CI,$HR,LMKE,~HCIHandleI>),
+    !HostTemporarySecret($HI,~HCIHandleI,LMKE,~DHEskI)
   ]
 
 /*
@@ -196,35 +199,36 @@ rule ihRevEncChange [color=#DEBF80]:
 
 //! Initiator Controller
 /*
-PRE: !ControllerStateP('LLConnected',<$CI,'Central',$HI,~HCIHandleI,~AccessAdd>),
+PRE: !ControllerStateP('LLConnected',<$CI,'Central',$HI,~HCIHandleI,AccessAdd>),
 ACT: Fr(~SKDI),Fr(~IVI)
 IN-HCI: HCIIn($HI,$CI,<~HCIHandleI,'HCI_LE_Enable_Encryption',LTK>),
-CON: ControllerState('LLSentSKD',<$CI,'Central',$HI,~HCIHandleI,~AccessAdd,~SKDI,~IVI,LTK>),
-OUT-BT: Out(<~AccessAdd,~SKDI,~IVI>),
+CON: ControllerState('LLSentSKD',<$CI,'Central',$HI,~HCIHandleI,AccessAdd,~SKDI,~IVI,LTK>),
+OUT-BT: Out(<AccessAdd,~SKDI,~IVI>),
 OUT-HCI: HCIOut($CI,$HI,<~HCIHandleI,<'HCI_Command_State','HCI_LE_Enable_Encryption'>>)
 */
 rule icRevLTK [color=#DCCD5B]:
   [
-    !ControllerStateP('LLConnected',<$CI,'Central',$HI,~HCIHandleI,~AccessAdd>),
+    !ControllerStateP('LLConnected',<$CI,'Central',$HI,~HCIHandleI,AccessAdd>),
     HCIIn($HI,$CI,<~HCIHandleI,'HCI_LE_Enable_Encryption',LTK>),
     Fr(~SKDI),
     Fr(~IVI)
   ]
   --[
-    OnlyOnceV(<'RevLTK',~HCIHandleI>)
+    OnlyOnceV(<'RevLTK',~HCIHandleI>),
+    Src_ICInLTK(LTK)
   ]->
   [
-    ControllerState('LLSentSKD',<$CI,'Central',$HI,~HCIHandleI,~AccessAdd,~SKDI,~IVI,LTK>),
-    Out(<~AccessAdd,~SKDI,~IVI>),
+    ControllerState('LLSentSKD',<$CI,'Central',$HI,~HCIHandleI,AccessAdd,~SKDI,~IVI,LTK>),
+    Out(<AccessAdd,~SKDI,~IVI>),
     HCIOut($CI,$HI,<~HCIHandleI,<'HCI_Command_State','HCI_LE_Enable_Encryption'>>)
   ]
 
 /*
-PRE: ControllerState('LLSentSKD',<$CI,'Central',$HI,~HCIHandleI,~AccessAdd,~SKDI,~IVI,LTK>),
-IN-BT: In(<~AccessAdd,~SKDR,~IVR>),
-        In(<~AccessAdd,'LL_START_ENC_REQ'>),
-CON: ControllerState('LLSenEnctRSP',<$CI,'Central',$HI,~HCIHandleI,~AccessAdd,SK,IV,sendCounterNew,revCounter>),
-OUT-BT: Out(<~AccessAdd,'LL_START_ENC_RSP'>)
+PRE: ControllerState('LLSentSKD',<$CI,'Central',$HI,~HCIHandleI,AccessAdd,~SKDI,~IVI,LTK>),
+IN-BT: In(<AccessAdd,~SKDR,~IVR>),
+        In(<AccessAdd,'LL_START_ENC_REQ'>),
+CON: ControllerState('LLSenEnctRSP',<$CI,'Central',$HI,~HCIHandleI,AccessAdd,SK,IV,sendCounterNew,revCounter>),
+OUT-BT: Out(<AccessAdd,'LL_START_ENC_RSP'>)
  */
 rule icRevSKD [color=#DCCD5B]:
   let
@@ -236,22 +240,27 @@ rule icRevSKD [color=#DCCD5B]:
     SK = KDF(LTK, <~SKDI,~SKDR>)
     IV = <~IVI,~IVR>
     EncRsp = senc(<<IV,sendCounter,directionFlagSend>,'LL_START_ENC_RSP'>,SK)
+    sid = LTK
   in
   [
-    ControllerState('LLSentSKD',<$CI,'Central',$HI,~HCIHandleI,~AccessAdd,~SKDI,~IVI,LTK>),
-    In(<~AccessAdd,~SKDR,~IVR>),
-    In(<~AccessAdd,'LL_START_ENC_REQ'>)
+    ControllerState('LLSentSKD',<$CI,'Central',$HI,~HCIHandleI,AccessAdd,~SKDI,~IVI,LTK>),
+    In(<AccessAdd,~SKDR,~IVR>),
+    In(<AccessAdd,'LL_START_ENC_REQ'>)
   ]
-  --[]->
+  --[
+    Running($CI,SK)
+  ]->
   [
-    ControllerState('LLSentEncRSP',<$CI,'Central',$HI,~HCIHandleI,~AccessAdd,SK,IV,sendCounterNew,revCounter>),
-    Out(<~AccessAdd,EncRsp>)
+    ControllerState('LLSentEncRSP',<$CI,'Central',$HI,~HCIHandleI,AccessAdd,SK,IV,sendCounterNew,revCounter,sid>),
+    !SessionPreKey(sid,LTK),
+    !SessionKey(sid,SK),
+    Out(<AccessAdd,EncRsp>)
   ]
 
 /*
-PRE: ControllerState('LLSentEncRSP',<$CI,'Central',$HI,~HCIHandleI,~AccessAdd,SK,IV,sendCounterNew,revCounter>),
-IN-BT: In(<~AccessAdd,EncPeerRsp>)，
-CON: ControllerState('LLRevEncRSP',<$CI,'Central',$HI,~HCIHandleI,~AccessAdd,SK,IV,sendCounterNew,revCounterNew>),
+PRE: ControllerState('LLSentEncRSP',<$CI,'Central',$HI,~HCIHandleI,AccessAdd,SK,IV,sendCounterNew,revCounter>),
+IN-BT: In(<AccessAdd,EncPeerRsp>)，
+CON: ControllerState('LLRevEncRSP',<$CI,'Central',$HI,~HCIHandleI,AccessAdd,SK,IV,sendCounterNew,revCounterNew>),
 OUT-HCI：HCIOut($CI,$HI,<~HCIHandleI,<'HCI_Encrytion_Change'>>)
 */
 rule icRevEncRSP [color=#DCCD5B]:
@@ -262,70 +271,105 @@ rule icRevEncRSP [color=#DCCD5B]:
     EncPeerRsp = senc(<<IV,%revCounter,directionFlagRev>,'LL_START_ENC_RSP'>,SK)
   in
   [
-    ControllerState('LLSentEncRSP',<$CI,'Central',$HI,~HCIHandleI,~AccessAdd,SK,IV,%sendCounter,%revCounter>),
-    In(<~AccessAdd,EncPeerRsp>)
+    ControllerState('LLSentEncRSP',<$CI,'Central',$HI,~HCIHandleI,AccessAdd,SK,IV,%sendCounter,%revCounter,sid>),
+    In(<AccessAdd,EncPeerRsp>)
   ]
   --[
     Secret(SK),
     Honest($HI),
+    Session(sid),
+    HostHandel($HI,~HCIHandleI),
+    Commit($CI,SK)
   ]->
   [
-    ControllerState('LLRevEncRSP',<$CI,'Central',$HI,~HCIHandleI,~AccessAdd,SK,IV,%sendCounter,revCounterNew>),
+    ControllerState('LLRevEncRSP',<$CI,'Central',$HI,~HCIHandleI,AccessAdd,SK,IV,%sendCounter,revCounterNew,sid>),
     HCIOut($CI,$HI,<~HCIHandleI,<'HCI_Encrytion_Change'>>)
   ]
 
 
 //! Responder Controller
 /*
-PRE: !ControllerStateP('LLConnected',<$CR,'Peripheral',$HR,~HCIHandleR,~AccessAdd>),
-IN-BT: In(<~AccessAdd,~SKDI,~IVI>),
+PRE: !ControllerStateP('LLConnected',<$CR,'Peripheral',$HR,~HCIHandleR,AccessAdd>),
+IN-BT: In(<AccessAdd,~SKDI,~IVI>),
 ACT: Fr(~SKDR),Fr(~IVR)
-CON: ControllerState('LLRevSKDI',<$CR,'Peripheral',$HR,~HCIHandleR,~AccessAdd,~SKDI,~SKDR,~IVI,~IVR>),
-OUT-BT: Out(<~AccessAdd,~SKDR,~IVR>),
+CON: ControllerState('LLRevSKDI',<$CR,'Peripheral',$HR,~HCIHandleR,AccessAdd,~SKDI,~SKDR,~IVI,~IVR>),
+OUT-BT: Out(<AccessAdd,~SKDR,~IVR>),
 OUT-HCI: HCIOut($CR,$HR,<~HCIHandleR,<'HCI_LE_Long_Term_Key_Request'>>)
 */
 rule rcRevSKDI [color=#73AD96]:
   [
-    !ControllerStateP('LLConnected',<$CR,'Peripheral',$HR,~HCIHandleR,~AccessAdd>),
-    In(<~AccessAdd,~SKDI,~IVI>),
+    !ControllerStateP('LLConnected',<$CR,'Peripheral',$HR,~HCIHandleR,AccessAdd>),
+    In(<AccessAdd,~SKDI,~IVI>),
     Fr(~SKDR),
     Fr(~IVR)
   ]
   --[]->
   [
-    ControllerState('LLRevSKDI',<$CR,'Peripheral',$HR,~HCIHandleR,~AccessAdd,~SKDI,~SKDR,~IVI,~IVR>),
-    Out(<~AccessAdd,~SKDR,~IVR>),
+    ControllerState('LLRevSKDI',<$CR,'Peripheral',$HR,~HCIHandleR,AccessAdd,~SKDI,~SKDR,~IVI,~IVR>),
+    Out(<AccessAdd,~SKDR,~IVR>),
     HCIOut($CR,$HR,<~HCIHandleR,<'HCI_LE_Long_Term_Key_Request'>>)
   ]
 
 /*
-PRE: ControllerState('LLRevSKDI',<$CR,'Peripheral',$HR,~HCIHandleR,~AccessAdd,~SKDI,~SKDR,~IVI,~IVR>),
+PRE: ControllerState('LLRevSKDI',<$CR,'Peripheral',$HR,~HCIHandleR,AccessAdd,~SKDI,~SKDR,~IVI,~IVR>),
 IN-HCI: HCIIn($HR,$CR,<~HCIHandleR,'HCI_LE_Long_Term_Key_Request_Reply',LTK>)
-CON: ControllerState('LLRevLTK',<$CR,'Peripheral',$HR,~HCIHandleR,~AccessAdd,SK,IV>),
-OUT-BT: Out(<~AccessAdd,'LL_START_ENC_REQ'>),
+CON: ControllerState('LLRevLTK',<$CR,'Peripheral',$HR,~HCIHandleR,AccessAdd,SK,IV>),
+OUT-BT: Out(<AccessAdd,'LL_START_ENC_REQ'>),
 OUT-HCI: HCIOut($CR,$HR,<~HCIHandleR,<'HCI_Command_Complete'>>)
 */
 rule rcRevLTK [color=#73AD96]:
   let
+    sid = LTK
     SK = KDF(LTK, <~SKDI,~SKDR>)
     IV = <~IVI,~IVR>
   in
   [
-    ControllerState('LLRevSKDI',<$CR,'Peripheral',$HR,~HCIHandleR,~AccessAdd,~SKDI,~SKDR,~IVI,~IVR>),
+    ControllerState('LLRevSKDI',<$CR,'Peripheral',$HR,~HCIHandleR,AccessAdd,~SKDI,~SKDR,~IVI,~IVR>),
     HCIIn($HR,$CR,<~HCIHandleR,'HCI_LE_Long_Term_Key_Request_Reply',LTK>)
   ]
-  --[]->
+  --[
+    Src_RCInLTK(LTK),
+    Running($CR,SK)
+  ]->
   [
-    ControllerState('LLRevLTK',<$CR,'Peripheral',$HR,~HCIHandleR,~AccessAdd,SK,IV>),
-    Out(<~AccessAdd,'LL_START_ENC_REQ'>),
+    ControllerState('LLRevLTK',<$CR,'Peripheral',$HR,~HCIHandleR,AccessAdd,SK,IV,sid>),
+    !SessionPreKey(sid,LTK),
+    !SessionKey(sid,SK),
+    Out(<AccessAdd,'LL_START_ENC_REQ'>),
     HCIOut($CR,$HR,<~HCIHandleR,<'HCI_Command_Complete'>>)
   ]
 
+rule prekeyOracle [color=#FF5733]:
+  [
+    !SessionPreKey(sid,LTK),
+    In(<'ReqControllerPreKey'>)
+  ]
+  --[
+    RevealPrekey(sid)
+  ]->
+  [
+    Out(LTK)
+  ]
+
+rule sesskeyOracle [color=#FF5733]:
+  [
+    !SessionKey(sid,SK),
+    In(<'ReqControllerSession'>)
+  ]
+  --[
+    RevealSesskey(sid)
+  ]->
+  [
+    Out(SK)
+  ]
+
+
+
 /*
-PRE: ControllerState('LLRevLTK',<$CR,'Peripheral',$HR,~HCIHandleR,~AccessAdd,SK,IV>),
-IN-BT: In(<~AccessAdd,'LL_START_ENC_RSP'>),
-CON: ControllerState('LLRevEncRSP',<$CR,'Peripheral',$HR,~HCIHandleR,~AccessAdd,SK,,sendCounterNew,revCounterNew>),
-OUT-BT: Out(<~AccessAdd,EncRsp>),
+PRE: ControllerState('LLRevLTK',<$CR,'Peripheral',$HR,~HCIHandleR,AccessAdd,SK,IV>),
+IN-BT: In(<AccessAdd,'LL_START_ENC_RSP'>),
+CON: ControllerState('LLRevEncRSP',<$CR,'Peripheral',$HR,~HCIHandleR,AccessAdd,SK,,sendCounterNew,revCounterNew>),
+OUT-BT: Out(<AccessAdd,EncRsp>),
 OUT-HCI: HCIOut($CR,$HR,<~HCIHandleR,<'HCI_Encrytion_Change'>>)
 */
 rule rcRevEncRSP [color=#73AD96]:
@@ -340,18 +384,21 @@ rule rcRevEncRSP [color=#73AD96]:
     EncRsp = senc(<<IV,sendCounter,directionFlagSend>,'LL_START_ENC_RSP'>,SK)
   in
   [
-    ControllerState('LLRevLTK',<$CR,'Peripheral',$HR,~HCIHandleR,~AccessAdd,SK,IV>),
-    In(<~AccessAdd,EncPeerRsp>)
+    ControllerState('LLRevLTK',<$CR,'Peripheral',$HR,~HCIHandleR,AccessAdd,SK,IV,sid>),
+    In(<AccessAdd,EncPeerRsp>)
   ]
   --[
     Secret(SK),
-    Honest($HR)
+    Session(sid),
+    Honest($HR),
+    Commit($CR,SK)
   ]->
   [
-    ControllerState('LLRevEncRSP',<$CR,'Peripheral',$HR,~HCIHandleR,~AccessAdd,SK,sendCounterNew,revCounterNew>),
-    Out(<~AccessAdd,EncRsp>),
+    ControllerState('LLRevEncRSP',<$CR,'Peripheral',$HR,~HCIHandleR,AccessAdd,SK,sendCounterNew,revCounterNew,sid>),
+    Out(<AccessAdd,EncRsp>),
     HCIOut($CR,$HR,<~HCIHandleR,<'HCI_Encrytion_Change'>>)
   ]
+
 
 
 //! Responder Host
@@ -372,8 +419,7 @@ rule rhSendDHEpk [color=#5F9069]:
     Fr(~DHEskR)
   ]
   --[
-    Neq(DHEpkI,DH_neutral),
-    SecretDHsk(~DHEskR)
+    Neq(DHEpkI,DH_neutral)
   ]->
   [
     HostState('LLSentDHEpk',<$HR,'Responder',$CR,$HI,~LTK,~HCIHandleR,~DHEskR,DHEpkI>),
@@ -394,10 +440,26 @@ rule rhRevLTKRequest [color=#5F9069]:
     HostState('LLSentDHEpk',<$HR,'Responder',$CR,$HI,~LTK,~HCIHandleR,~DHEskR,DHEpkI>),
     HCIIn($CR,$HR,<~HCIHandleR,<'HCI_LE_Long_Term_Key_Request'>>)
   ]
-  --[]->
+  --[
+    Src_RHOutLTK(LMKE),
+    SecretDHsk(~DHEskR,LMKE)
+  ]->
   [
     HostState('LLSentLTK',<$HR,'Responder',$CR,$HI,LMKE,~HCIHandleR>),
-    HCIOut($HR,$CR,<~HCIHandleR,'HCI_LE_Long_Term_Key_Request_Reply',LMKE>)
+    HCIOut($HR,$CR,<~HCIHandleR,'HCI_LE_Long_Term_Key_Request_Reply',LMKE>),
+    !HostTemporarySecret($HR,~HCIHandleR,LMKE,~DHEskR)
+  ]
+
+rule revealHostTemporaryOracle [color=#FF5733]:
+  [
+    !HostTemporarySecret($host,~hciHandel,sid,~sk),
+    In('RevealHostTemporarySecret')
+  ]
+  --[
+    RevealHostTemporary(sid)
+  ]->
+  [
+    Out(~sk)
   ]
 
 /* 
@@ -433,17 +495,43 @@ restriction OnlyOnceV:
   All x #i #j. OnlyOnceV(x)@i & OnlyOnceV(x)@j ==> #i = #j
   "
 
-lemma SecrecyOfDHPrivateKey [reuse]:
+lemma type [sources,heuristic={typeTactic}]:
+  "
+  (All ltk #i. Src_ICInLTK(ltk)@i ==> Ex #j. Src_IHOutLTK(ltk)@j) &
+  (All ltk #i. Src_RCInLTK(ltk)@i ==> Ex #j. Src_RHOutLTK(ltk)@j)
+  "
+
+lemma SecrecyOfDHPrivateKeyunlessRevealSK [reuse]:
     "
-    All sk #i. SecretDHsk(sk)@i ==> not(Ex #j. KU(sk)@j)
+    All sk sid #i. SecretDHsk(sk,sid)@i ==> 
+        not(Ex #j. KU(sk)@j)
+      | (Ex #k. RevealHostTemporary(sid)@k)
     "
 
-lemma secrecy_PFS [heuristic={secrecy_PFS}, use_induction]:
-  "All x #i.
-    Secret(x)@i ==>
-    not (Ex #j. K(x)@j) 
-      | (Ex B #j. Reveal(B)@j & Honest(B)@i & j < i)
-      | (Ex B BP #j #k. Reveal(BP)@j & Honest(B)@i & Partner(B,BP)@k & j < i)
+predicates: FreshSession(sid,host,#i) <=> 
+  not(Ex #j. Reveal(host)@j & j<i) &
+  not(Ex peer #j #k. Paired(host,peer)@j & Reveal(peer)@k & k<i) &
+  // Partner has the same sid.
+  not(Ex #j. RevealPrekey(sid)@j) & not(Ex #j. RevealSesskey(sid)@j) &
+  not(Ex #j. RevealHostTemporary(sid)@j)
+
+lemma secrecy_PFS [heuristic={secrecy_PFS}]:
+  "All x sid host #i.
+    Secret(x)@i & Session(sid)@i & Honest(host)@i & FreshSession(sid,host,#i)  ==>
+      not (Ex #j. K(x)@j)
+  "
+
+lemma noninjective_agreement_CP_SK [heuristic={secrecy_PFS}]:
+  "
+  All A sk sid host #i. Commit(A,sk)@i & Session(sid)@i & Honest(host)@i & FreshSession(sid,host,#i) ==> 
+    (Ex peer B #j #k #l. Running(B,sk)@j & Paired(host,peer)@k & BindHC(peer,B)@l)
+  "
+
+lemma injective_agreement_CP_SK [heuristic={secrecy_PFS}]:
+  "
+  All A sk sid host #i. Commit(A,sk)@i & Session(sid)@i & Honest(host)@i & FreshSession(sid,host,#i) ==> 
+    (Ex peer B #j #k #l. Running(B,sk)@j & Paired(host,peer)@k & BindHC(peer,B)@l & j<i
+    & not(Ex A2 #i2. Commit(A2,sk)@i2 & not(#i2=#i) & not(B=A2)))
   "
 
 end

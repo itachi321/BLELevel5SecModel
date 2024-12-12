@@ -1,0 +1,1 @@
+docker run --rm -it -p 13001:3001 -v $(pwd):/root ghcr.io/luojiazhishu/tamarin-docker/toolbox:latest bash -c "make"
